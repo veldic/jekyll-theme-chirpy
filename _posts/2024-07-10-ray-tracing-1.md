@@ -243,7 +243,7 @@ $N \cdot Rt = N \cdot (v_0 - O)$
 
 $t = {N \cdot (v_0 - O) \over N \cdot R}$
 
-이 과정을 통해 Polygon이 속한 평면 위의 점 `P`를 구할 수 있다. 이제 `P`가 실제로 Polygon 위에 있는지를 확인하면 된다. 이는 [Baycentric coordinate system](https://en.wikipedia.org/wiki/Barycentric_coordinate_system)을 통해 확인할 수 있다.
+이 과정을 통해 Polygon이 속한 평면 위의 점 `P`를 구할 수 있다. 이제 `P`가 실제로 Polygon 위에 있는지를 확인하면 된다. 이는 [Barycentric coordinate system](https://en.wikipedia.org/wiki/Barycentric_coordinate_system)을 통해 확인할 수 있다.
 
 간단히 말해서 점 `P`가 세 점 $v_0$, $v_1$ 그리고 $v_2$가 이루는 평면 위에 있고 $P = uv_0 + vv_1 + wv_2$로 나타낼 때, $u, v, w >= 0$를 만족하면 점 `P`는 세 점이 이루는 평면 위에 있다는 결론을 내릴 수 있다. 
 
@@ -303,4 +303,4 @@ def interact(self, ray: Ray):
 1. Jungdam Won, Ray Tracing 수업 자료
 2. Wikipedia, Refraction, https://en.wikipedia.org/wiki/Refraction
 3. Wikipedia, Reflection, https://en.wikipedia.org/wiki/Reflection_(physics)
-4. Wikipedia, Baycentric coordinate system, https://en.wikipedia.org/wiki/Barycentric_coordinate_system
+4. Wikipedia, Barycentric coordinate system, https://en.wikipedia.org/wiki/Barycentric_coordinate_system
