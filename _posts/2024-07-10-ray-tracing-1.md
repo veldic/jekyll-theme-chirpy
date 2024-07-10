@@ -304,4 +304,3 @@ def interact(self, ray: Ray):
 2. Wikipedia, Refraction, https://en.wikipedia.org/wiki/Refraction
 3. Wikipedia, Reflection, https://en.wikipedia.org/wiki/Reflection_(physics)
 4. Wikipedia, Baycentric coordinate system, https://en.wikipedia.org/wiki/Barycentric_coordinate_system
-5. 
