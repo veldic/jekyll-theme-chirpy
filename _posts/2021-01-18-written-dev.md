@@ -1,17 +1,13 @@
 ---
 title:  "씀 - 클론코딩"
-date:   2021-01-18
-author: 
-    name: Veldic
-excerpt: "2020.11.22 - 2021.01.09 동안 진행한 '씀' 서비스 클론 코딩"
-categories:
-- project
-tags:
-- clone-coding
-- project
+date:   2021-01-18 +0900
+author: Veldic
+description: "2020.11.22 - 2021.01.09 동안 진행한 '씀' 서비스 클론 코딩"
+categories: [project]
+tags: [clone-coding, project]
+image:
+  path: /assets/img/written/preview.jpeg
 ---
-
-![preview](/assets/img/written/preview.jpeg)
 
 ## 씀 클론코딩
  와플 스튜디오에서 2020년 하반기 Rookies Seminar가 끝나고 진행한 toy-project로 여러 조로 나누어서 실제 서비스를 클론 코딩하는 프로젝트를 진행하였고 우리 조는 글쓰기 어플인 ['씀'](https://play.google.com/store/apps/details?id=com.projectm.ezbrother.ssm)을 클론 코딩하였다. 코드는 아래 repo에서 확인해볼 수 있다.

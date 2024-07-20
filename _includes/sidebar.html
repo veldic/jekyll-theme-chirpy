@@ -54,21 +54,12 @@
     {% endunless %}
 
     {% for entry in site.data.contact %}
-<<<<<<< HEAD
-      {% capture url %}
-        {%- if entry.type == 'github' -%}
-          https://github.com/{{ site.github.username }}
-        {%- elsif entry.type == 'instagram' -%}
-          https://instagram.com/{{ site.instagram.username }}
-        {%- elsif entry.type == 'email' -%}
-=======
       {% case entry.type %}
-        {% when 'github', 'twitter' %}
+        {% when 'github', 'instagram' %}
           {%- capture url -%}
             https://{{ entry.type }}.com/{{ site[entry.type].username }}
           {%- endcapture -%}
         {% when 'email' %}
->>>>>>> upstream/master
           {% assign email = site.social.email | split: '@' %}
           {%- capture url -%}
             javascript:location.href = 'mailto:' + ['{{ email[0] }}','{{ email[1] }}'].join('@')

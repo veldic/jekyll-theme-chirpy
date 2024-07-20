@@ -1,16 +1,13 @@
 ---
 title:  "Ray Tracing (1) - 강의 리뷰"
-date:   2024-07-10
-author:
-    name: Veldic
-excerpt: "Review of Ray Tracing Lecture"
-categories:
-- graphics
-tags:
-- study
-- graphics
-- ray-tracing
-use_math: true
+date:   2024-07-10 +0900
+author: Veldic
+description: "Review of Ray Tracing Lecture"
+categories: [graphics]
+tags: [study, graphics, ray-tracing]
+math: true
+image:
+  path: /assets/img/raytracing/1/Result.png
 ---
 
 ## 들어가며
@@ -33,6 +30,7 @@ use_math: true
 <b>Ray Tracing</b>은 Illumination models를 나누는 두 개의 큰 틀 중에서 Global illumination models 중 하나이다. Ray Tracing은 또 다시 두 개로 나뉜다. 바로 Forward Ray Tracing과 Backward Ray Tracing이다.
 
 ![ray-tracing](/assets/img/raytracing/1/RayTracing.png)
+_Forward/Backward Ray Tracing_
 
 ### Forward Ray Tracing
 Forward Ray Tracing은 실제 빛의 작용과 굉장히 유사하다. 광원(Light Sources)에서 여러 Ray를 발사하여 여러 물체에 상호작용한 뒤, 카메라나 인간의 눈으로 들어오는 방식으로 구현하는 것을 말한다. 이는 상술했듯이 실제 빛의 작용과 굉장히 유사하여 직관적인 장점을 가지고 있다. 하지만 광원에서 출발한 Ray가 최종적으로 카메라에 들어가는지 알 수 없기 때문에 무수하게 많은 Ray를 계산해야 해서 컴퓨터로 구현하기에는 무리가 있다.
@@ -60,14 +58,16 @@ Ray Tracing을 구현하기 위해서는 크게 4가지를 구현하면 된다.
 #### Precision Problem
 구현 코드를 보다보면 `hit_point`에서 $\epsilon$만큼 `hit_normal` 방향으로 이동하여 ray를 만드는 경우를 볼 수 있을 것이다. 이는 컴퓨터에서 실수를 구현하는 방식인 floating point 때문에 발생하는 precision problem을 해결하기 위한 작업인데, `hit_point`에서 정확하게 ray를 시작할 경우 intersection checking 과정에서 ray를 시작하는 그 물체에 닿아버릴 수 있기 때문이다. 
 
-![Precision1](/assets/img/raytracing/1/Precision_1.png)
-![Precision2](/assets/img/raytracing/1/Precision_2.png)
+![Precision1](/assets/img/raytracing/1/Precision_1.png){: w="600" }
+![Precision2](/assets/img/raytracing/1/Precision_2.png){: w="600" }
+_Solve Precision Problem_
 
 
 ### Shadow
 Local illumination 설명을 본다면 Shadow가 구현이 되어있는게 아닌가라는 의문이 들 수 있다. 어느 정도는 맞는 이야기인 것이, 빛을 바라보고 있지 않은 표면은 Local illumination에 의해 어두워지기 떄문에 그림자가 구현되었다고 볼 수 있다. 하지만 여기서 다루는 내용은 Local illumination에서 다루지 않는, 빛을 바라보고 있는 표면이지만 광원과 표면 사이에 물체가 존재하여 빛이 가로막히는 경우를 말한다.
 
-![Shadow](/assets/img/raytracing/1/Shadow.png)
+![Shadow](/assets/img/raytracing/1/Shadow.png){: w="600" }
+_Shadow_
 
 이는 다음과 같이 구현할 수 있다.
 
@@ -104,7 +104,8 @@ for light in light_list:
 
 반사의 구현은 현실의 물리법칙을 따른다. 따라서 입사각(angle of incidence) $\theta_{in}$과 반사각(angle of reflection) $\theta_{out}$이 같다.
 
-![Reflection](/assets/img/raytracing/1/Reflection.png)
+![Reflection](/assets/img/raytracing/1/Reflection.png){: w="600" }
+_Reflection_
 
 Reflect된 Ray의 color을 얻는 자세한 구현은 다음과 같다.
 
@@ -120,15 +121,17 @@ color_reflect = trace_ray(reflect_ray, depth + 1)
 
 굴절 또한 기존의 물리법칙과 동일하게 구현한다. 스넬의 법칙(Snell's law)에 따라 굴절 전 매질의 굴절률을 $\eta_{i}$, 굴절 후 매질의 굴절률을 $\eta_{r}$라 했을 때, 입사각(angle of incidence) $\theta_{in}$과 굴절각(angle of refraction) $\theta_{r}$은 다음과 같은 관계를 가진다.
 
-$\eta_{i} sin{\theta_{i}} = \eta_{r} sin{\theta_{r}}$
+$$\eta_{i} sin{\theta_{i}} = \eta_{r} sin{\theta_{r}}$$
 
-![Refraction](/assets/img/raytracing/1/Refraction.png)
+![Refraction](/assets/img/raytracing/1/Refraction.png){: w="600" }
+_Refraction_
 
 굴절을 구현할 때는 여러 상황을 가정하고 구현해야 한다. Shadow나 Reflection은 구현 시에 항상 incident ray가 surface normal 방향에서 들어왔지만 refraction은 surface를 뚫고 나아가는 ray가 만들어지기 때문에 ray가 surface normal의 반대 방향에서 들어오는 경우도 고려해주어야 한다. 또한 스넬의 법칙으로 계산된 $\theta_{r}$이 90도를 넘을 경우 [전반사](https://ko.wikipedia.org/wiki/%EC%A0%84%EB%B0%98%EC%82%AC)가 일어난다. 따라서 이 경우에는 굴절이 아닌 반사를 적용시켜 주어야 한다.
 
 또한 구현 시에 굴절하는 방향인 `T`는 3차원 상에서 계산되어야 하기 때문에 계산이 복잡하다. 그림을 참고하여 `T`를 `L`, `N` 그리고 $\cos\theta_i$로 나타내는 유도과정은 다음과 같다.
 
-![Refraction2](/assets/img/raytracing/1/Refraction_2.png)
+![Refraction2](/assets/img/raytracing/1/Refraction_2.png){: w="600" }
+_Refracted Direction T_
 
 $Let$  $\eta = { {\eta_i} \over {\eta_r} } = $ ${\sin\theta_r} \over {\sin\theta_i}$ , $M={(N{\cos{\theta_i}}-L)\over{\sin{\theta_i}}}$
 
@@ -189,7 +192,8 @@ if np.dot(hit_normal, ray.dir) > 0 :
 
 #### Sphere
 
-![SphereInter](/assets/img/raytracing/1/Sphere_Inter.png)
+![SphereInter](/assets/img/raytracing/1/Sphere_Inter.png){: w="600" }
+_Sphere Intersection_
 
 $P = O+Rt$
 
@@ -229,7 +233,8 @@ Polygon의 intersection 구현은 두 부분으로 나눌 수 있다.
 1. Polygon을 포함하는 평면을 ray가 지나는 점 구하기 ($t>0$인 `t`를 구하기)
 2. 그 점이 Polygon을 구성하는 삼각형 안에 있는지 여부 확인
 
-![PolyInter1](/assets/img/raytracing/1/Poly_Inter_1.png)
+![PolyInter](/assets/img/raytracing/1/Poly_Inter_1.png){: w="600" }
+_Polygon Intersection_
 
 $P = O+Rt$
 
@@ -285,6 +290,7 @@ def interact(self, ray: Ray):
 
 ### 결과물
 ![Result](/assets/img/raytracing/1/Result.png)
+_Ray Tracing Result (Cornell Box)_
 
 위 조건을 바탕으로 코드를 작성한 결과 성공적으로 결과물을 얻어낼 수 있었다. 가장 가까운 구는 굴절률을 2로 설정한 구이고 그 뒤에 있는 구는 완전 반사가 일어나는 구이다. 그리고 왼쪽 구석에 반사판을 두어 반사 효과가 더 극적으로 보일 수 있도록 설정하였다.
 
