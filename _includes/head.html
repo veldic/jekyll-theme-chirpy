@@ -50,10 +50,6 @@
 
   {{ seo_tags }}
 
-  {% if page.use_math %}
-	  {% include mathjax.html %}
-  {% endif %}
-
   <title>
     {%- unless page.layout == 'home' -%}
       {{ page.title | append: ' | ' }}
