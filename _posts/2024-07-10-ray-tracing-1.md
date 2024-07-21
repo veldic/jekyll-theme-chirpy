@@ -7,7 +7,7 @@ categories: [graphics]
 tags: [study, graphics, ray-tracing]
 math: true
 image:
-  path: /assets/img/raytracing/1/Result.png
+  path: /assets/img/raytracing/1/Result.png 
 ---
 
 ## 들어가며
