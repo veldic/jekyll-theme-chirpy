@@ -1,0 +1,576 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Boids Simulation</title>
+        <style>
+          body {
+            margin: 0;
+          }
+          .button{
+              background-color: #606060;
+              border: none;
+              color: white;
+              padding: 10px 32px;
+              font-size: 16px;
+              margin: 4px 2px;
+              cursor: pointer;
+          }
+          .slider{
+              -webkit-appearance: none;
+              width: 80px;
+              height: 6px;
+              border-radius: 5px;
+              background: #d3d3d3;
+              outline: none;
+              opacity: 0.7;
+              -webkit-transition: .2s;
+              transition: opacity .2s;
+              margin: 10px 10px;
+          }
+          canvas {
+              display: block;
+          }
+	    </style>
+      <py-config type="json">
+        {
+          "packages":["numpy"]
+        }
+      </py-config>
+    </head>
+    <body>
+      <div id="varcontainer">
+        <button class="py-button" py-click="run()">Run/Pause</button>
+        <button class="py-button" py-click="reset_scene()">Restart</button>
+        <button class="py-button" py-click="reset_goal()">Move Goal</button>
+        <button class="py-button" py-click="toggle_goal()">Toggle Goal</button>
+        <button class="py-button" py-click="toggle_predetors()">Toggle Predetor</button>
+        <button class="py-button" py-click="reset_obstacles()">Move Obstacles</button>
+        <button class="py-button" py-click="toggle_obstacles()">Toggle Obstacles</button>
+        <br/>
+        Cohesion<input type = "range" min = "0" max = "200" value = "100" id = "Slider01" class = "py-slider"> <span id = "SliderValue01">1.0</span>
+        Separation<input type = "range" min = "0" max = "200" value = "100" id = "Slider02" class = "py-slider"> <span id = "SliderValue02">1.0</span>
+        Alighment<input type = "range" min = "0" max = "200" value = "100" id = "Slider03" class = "py-slider"> <span id = "SliderValue03">1.0</span>
+        TendToGoal<input type = "range" min = "0" max = "200" value = "100" id = "Slider06" class = "py-slider"> <span id = "SliderValue06">1.0</span>
+        RecogRange<input type = "range" min = "1" max = "100" value = "50" id = "Slider04" class = "py-slider"> <span id = "SliderValue04">50</span>
+        MaxSpeed<input type = "range" min = "10" max = "50" value = "20" id = "Slider05" class = "py-slider"> <span id = "SliderValue05">2.0</span>
+      </div>
+      
+        <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
+        <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
+        <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://pyscript.net/latest/pyscript.css"
+        /> 
+        <py-script>
+            from pyodide.ffi import create_proxy, to_js
+            from js import window
+            from js import Math
+            from js import THREE
+            from js import Object
+            from js import document
+            import asyncio
+            import js, pyodide
+
+            scene = THREE.Scene.new()
+            setcolor = "#bbbbbb"
+            scene.background = THREE.Color.new(setcolor)
+            
+            renderer = THREE.WebGLRenderer.new()
+            renderer.antialias = True
+            renderer.setSize(window.innerWidth, window.innerHeight)
+            document.body.appendChild( renderer.domElement )
+            
+            camera = THREE.PerspectiveCamera.new(75, window.innerWidth / window.innerHeight, 0.1, 1000.0 )
+            camera.position.set(80, 80, 80)
+            
+            controls = THREE.OrbitControls.new(camera, renderer.domElement)
+            controls.listenToKeyEvents(window)
+
+            def window_onsize(event):
+              camera.aspect = window.innerWidth / window.innerHeight
+              camera.updateProjectionMatrix()
+              renderer.setSize( window.innerWidth, window.innerHeight )
+
+            window.onresize = window_onsize
+            scene.pause = True
+            
+            # ================ Light setting ====================
+
+            ambientLight = THREE.AmbientLight.new(0xaaaaaa)
+            scene.add(ambientLight)
+
+            dirLight = THREE.DirectionalLight.new(0xffffff)
+            dirLight.position.set(1,1,1)
+            dirLight.castSHadow = True
+            scene.add(dirLight)
+
+            lightBack = THREE.PointLight.new(0x0FFFFF, 1)
+            lightBack.position.set(0, -3, -1)
+            scene.add(lightBack)
+            
+            # ===========Creating Bound Box ============
+
+            ## You can modify the size of box
+            boundRange = 50
+
+            bound_material = THREE.MeshStandardMaterial.new()
+            bound_material.color = THREE.Color.new(0x444488)
+            bound_material.transparent = True
+            bound_material.opacity = 0.1
+
+            edge_material = THREE.LineBasicMaterial.new()
+            edge_material.color = THREE.Color.new(0xfffffff)
+            
+            bound = THREE.Mesh.new(THREE.BoxGeometry.new(boundRange * 2, boundRange * 2, boundRange * 2), bound_material)
+            edges = THREE.LineSegments.new(THREE.EdgesGeometry.new(THREE.BoxGeometry.new(boundRange * 2, boundRange * 2, boundRange * 2)), )
+
+            scene.add(bound)
+            scene.add(edges)
+            
+            #===================== CORE =====================
+
+            import numpy as np 
+            import math
+            boidsP = None
+            boidsV = None
+            boidsN = 0
+            boidsShapes = []
+            predetorP = None
+            predetorV = None
+            predetorN = 0
+            obstacleP = None
+            obstacleN = 0
+            obstacleShapes = []
+            obsSize = []
+            goalShape = None
+            cohesion = 1
+            separation = 1
+            alignment = 1
+            goal_tend = 1
+            max_speed = 2
+            pred_max_speed = 2
+            show_goal = False
+            show_predetor = False
+            show_obstacle = False
+            recog_range = 50
+            coll = 0
+
+            def create_boids(num):
+              global boidsN, boidsP, boidsV, boidsShapes
+              boidsN = num  
+              boidsP = -np.random.rand(num, 3) * (boundRange * 2) + boundRange 
+              boidsV = (-np.random.rand(num, 3) * 3 + 1.5)
+              
+              for i in range(num):
+                geometry = THREE.CylinderGeometry.new(0.0,0.75,2.25,4,1)
+                material = THREE.MeshPhongMaterial.new()
+                material.color = THREE.Color.new(0x993333)
+                material.flatShading = True
+                boidShape = THREE.Mesh.new(geometry, material)
+                boidsShapes.append(boidShape)
+                scene.add(boidShape)
+
+            def create_goal():
+              global goalShape, goalP
+              geometry = THREE.SphereGeometry.new(0.5, 32, 32)
+              material = THREE.MeshBasicMaterial.new()
+              material.color = THREE.Color.new(0x0000ff)
+              goalShape = THREE.Mesh.new(geometry, material)
+              goalP = np.random.rand(3) * (boundRange * 2) - boundRange
+              goalShape.position.set(goalP[0], goalP[1], goalP[2])
+              if show_goal:
+                scene.add(goalShape)
+            
+            def toggle_goal():
+              global show_goal
+              show_goal = not show_goal
+              if show_goal:
+                scene.add(goalShape)
+              else:
+                scene.remove(goalShape)
+
+            def create_predetors(num):
+              global predetorN, predetorP, predetorV, predetorShapes
+              predetorN = num
+              predetorP = -np.random.rand(num, 3) * (boundRange * 2) + boundRange
+              predetorV = -np.random.rand(num, 3) * 3 + 1.5
+              predetorShapes = []
+              for i in range(num):
+                geometry = THREE.CylinderGeometry.new(0.0,1.5,3.5,4,1)
+                material = THREE.MeshPhongMaterial.new()
+                material.color = THREE.Color.new(0x333377)
+                material.flatShading = True
+                predetorShape = THREE.Mesh.new(geometry, material)
+                predetorShapes.append(predetorShape)
+                if show_predetor:
+                  scene.add(predetorShape)
+
+            def toggle_predetors():
+              global show_predetor
+              show_predetor = not show_predetor
+              if show_predetor:
+                for i in range(predetorN):
+                  scene.add(predetorShapes[i])
+              else:
+                for i in range(predetorN):
+                  scene.remove(predetorShapes[i])
+
+            def create_obstacles(num):
+              global obstacleN, obstacleP, obstacleShapes, obsSize
+              obstacleN = num
+              obstacleP = -np.random.rand(num, 3) * (boundRange * 2) + boundRange
+              for i in range(num):
+                obsSize = np.random.rand(num) * 30 + 1
+                geometry = THREE.SphereGeometry.new(obsSize[i], 16, 16)
+                material = THREE.MeshPhongMaterial.new()
+                material.color = THREE.Color.new(0x111111)
+                obstacleShape = THREE.Mesh.new(geometry, material)
+                obstacleShape.position.set(obstacleP[i][0], obstacleP[i][1], obstacleP[i][2])
+                obstacleShapes.append(obstacleShape)
+                if show_obstacle:
+                  scene.add(obstacleShape)
+
+            def toggle_obstacles():
+              global show_obstacle, obstacleN, obstacleShapes
+              show_obstacle = not show_obstacle
+              if show_obstacle:
+                for i in range(obstacleN):
+                  scene.add(obstacleShapes[i])
+              else:
+                for i in range(obstacleN):
+                  scene.remove(obstacleShapes[i])
+
+            def reset_scene():
+              reset_boids()
+              reset_goal()
+              reset_predetors()
+              reset_obstacles()
+
+            def reset_boids():
+              global boidsP, boidsV, boidsN, boundRange
+              boidsP = -np.random.rand(boidsN, 3) * (boundRange * 2) + boundRange 
+              boidsV =  -np.random.rand(boidsN, 3) * 3 + 1.5
+
+            def reset_goal():
+              global goalP, goalShape
+              goalP = np.random.rand(3) * (boundRange * 2) - boundRange
+              goalShape.position.set(goalP[0], goalP[1], goalP[2])
+              if show_goal:
+                scene.add(goalShape)
+            
+            def reset_predetors():
+              global predetorP, predetorV, predetorN, boundRange
+              predetorP = -np.random.rand(predetorN, 3) * (boundRange * 2) + boundRange
+              predetorV = -np.random.rand(predetorN, 3) * 3 + 1.5
+
+            def reset_obstacles():
+              global obstacleP, obstacleN, obsSize, obstacleShapes
+              for i in range(obstacleN):
+                scene.remove(obstacleShapes[i])
+              obstacleP = -np.random.rand(obstacleN, 3) * (boundRange * 2) + boundRange
+              obstacleShapes = []
+              for i in range(obstacleN):
+                obsSize = np.random.rand(obstacleN) * 30 + 1
+                geometry = THREE.SphereGeometry.new(obsSize[i], 16, 16)
+                material = THREE.MeshPhongMaterial.new()
+                material.color = THREE.Color.new(0x111111)
+                obstacleShape = THREE.Mesh.new(geometry, material)
+                obstacleShape.position.set(obstacleP[i][0], obstacleP[i][1], obstacleP[i][2])
+                obstacleShapes.append(obstacleShape)
+                if show_obstacle:
+                  scene.add(obstacleShape)
+                
+            def normalize(v):
+              norm = np.linalg.norm(v)
+              if norm == 0: 
+                return v
+              return v / norm
+
+            def draw_boids(): ## Sync boidData and boidShape
+              global boidsV, boidsShapes, boidsP, boidsN
+              for i in range(boidsN):
+                boidsShapes[i].position.set(boidsP[i][0], boidsP[i][1], boidsP[i][2])
+
+                axis = normalize(np.cross([0, 1, 0], boidsV[i]))
+                angle = math.acos(np.dot([0, 1, 0], boidsV[i]) / (np.linalg.norm([0, 1, 0]) * np.linalg.norm(boidsV[i])))
+                
+                ## TODO Update rotation to align the boid heading direction with its velocity
+                boidsShapes[i].setRotationFromAxisAngle(THREE.Vector3.new(axis[0], axis[1], axis[2]), angle) 
+
+            def draw_predetors():
+              global predetorShapes, predetorP, predetorN, predetorV
+              for i in range(predetorN):
+                predetorShapes[i].position.set(predetorP[i][0], predetorP[i][1], predetorP[i][2])
+
+                axis = normalize(np.cross([0, 1, 0], predetorV[i]))
+                angle = math.acos(np.dot([0, 1, 0], predetorV[i]) / (np.linalg.norm([0, 1, 0]) * np.linalg.norm(predetorV[i])))
+
+                predetorShapes[i].setRotationFromAxisAngle(THREE.Vector3.new(axis[0], axis[1], axis[2]), angle)
+
+
+            def dist(p1, p2):
+              return np.linalg.norm(p1 - p2)
+
+            def cohesion_rule():
+              global boidsP, boidsV, boidsN, cohesion
+              cohV = np.zeros((boidsN, 3))
+              for i in range(boidsN):
+                cnt = 0
+                for j in range(boidsN):
+                  if i != j and dist(boidsP[j], boidsP[i]) < recog_range:
+                    cohV[i] += boidsP[j]
+                    cnt += 1
+
+                if cnt > 0:
+                  cohV[i] /= cnt
+                else:
+                  cohV[i] = boidsP[i]
+
+              return (cohV - boidsP) / 100 * cohesion
+            
+            
+            def separation_rule():
+              global boidsP, boidsV, boidsN
+
+              sepV = np.zeros((boidsN, 3))
+              
+              for i in range(boidsN):
+                for j in range(boidsN):
+                  if i != j:
+                    if abs(dist(boidsP[j], boidsP[i])) < 7:
+                      sepV[i] -= (boidsP[j] - boidsP[i])
+
+              return sepV / 50 * separation 
+
+            def alignment_rule():
+              global boidsP, boidsV, boidsN
+              alignV = np.zeros((boidsN, 3))
+              for i in range(boidsN):
+                cnt = 0
+                for j in range(boidsN):
+                  if i != j and dist(boidsP[j], boidsP[i]) < recog_range:
+                    alignV[i] += boidsV[j]
+                    cnt += 1
+              if cnt > 0:
+                alignV[i] /= cnt
+              else:
+                alignV[i] = boidsV[i]
+
+              return (alignV - boidsV) / 600 * alignment
+
+            def toward_goal_rule():
+              global boidsP, boidsV, boidsN, goalP
+              goalV = np.zeros((boidsN, 3))
+              for i in range(boidsN):
+                goalV[i] = normalize(goalP - boidsP[i])
+              
+              if show_goal == False:
+                return goalV * 0
+              return goalV * goal_tend
+
+            def avoid_predetors_rule():
+              global boidsP, boidsV, boidsN, predetorP, predetorN
+              avoidV = np.zeros((boidsN, 3))
+              for i in range(boidsN):
+                for j in range(predetorN): 
+                  if dist(boidsP[i], predetorP[j]) < recog_range:
+                    avoidV[i] -= (predetorP[j] - boidsP[i])
+              
+              if show_predetor == False:
+                return avoidV * 0
+              return avoidV / 100
+
+            def avoid_obstacles_rule():
+              global boidsP, boidsV, boidsN, obstacleP, obstacleN, obsSize
+              if obstacleN == 0:
+                return np.zeros((boidsN, 3))
+              avoidV = np.zeros((boidsN, 3))
+              for i in range(boidsN):
+                for j in range(obstacleN):
+                  distToObs = dist(boidsP[i], obstacleP[j]) - obsSize[j]
+                  if distToObs < recog_range:
+                    if distToObs < 0.1:
+                      avoidV[i] += 100 * normalize(boidsP[i] - obstacleP[j])
+                    else:
+                      avoidV[i] += 10 / (distToObs ** 2) * normalize(boidsP[i] - obstacleP[j])
+              
+              return avoidV
+                    
+
+            def limit_velocity():
+              global boidsV, boidsN, max_speed
+
+              for i in range(boidsN):
+                if np.linalg.norm(boidsV[i]) > max_speed:
+                  boidsV[i] = boidsV[i] / np.linalg.norm(boidsV[i]) * max_speed
+
+            def avoid_bound():
+              # decrease the velocity of boids when they are close to the bound smoothly
+              global boidsP, boidsV, boidsN
+              bound = 5
+              amount = 0.5
+              for i in range(boidsN):
+                if boidsP[i][0] + bound < -boundRange:
+                  boidsV[i][0] += amount
+                if boidsP[i][0] - bound > boundRange:
+                  boidsV[i][0] -= amount
+                if boidsP[i][1] + bound < -boundRange:
+                  boidsV[i][1] += amount
+                if boidsP[i][1] - bound > boundRange:
+                  boidsV[i][1] -= amount
+                if boidsP[i][2] + bound < -boundRange:
+                  boidsV[i][2] += amount
+                if boidsP[i][2] - bound > boundRange:
+                  boidsV[i][2] -= amount
+              
+            
+            def update_boids():
+              global boidsP, boidsV, boidsN
+              
+              vel1 = cohesion_rule()
+              vel2 = separation_rule()
+              vel3 = alignment_rule()
+              vel4 = toward_goal_rule()
+              vel5 = avoid_predetors_rule()
+              vel6 = avoid_obstacles_rule()
+
+              boidsV += vel1 + vel2 + vel3 + vel4 + vel5 + vel6
+              avoid_bound()
+              limit_velocity()
+              boidsP += boidsV
+
+
+            def pred_chase_boid_rule():
+              # similar with cohesion rule
+              global predetorP, predetorV, predetorN, boidsP, boidsN
+              chaseV = np.zeros((predetorN, 3))
+              for i in range(predetorN):
+                cnt = 0
+                for j in range(boidsN):
+                  if dist(boidsP[j], predetorP[i]) < recog_range:
+                    chaseV[i] += boidsP[j]
+                    cnt += 1
+
+                if cnt > 0:
+                  chaseV[i] /= (cnt)
+                else:
+                  chaseV[i] = predetorP[i]
+
+              return (chaseV - predetorP) / 100
+
+            def pred_limit_velocity():
+              global predetorV, predetorN, pred_max_speed
+
+              for i in range(predetorN):
+                if np.linalg.norm(predetorV[i]) > pred_max_speed:
+                  predetorV[i] = predetorV[i] / np.linalg.norm(predetorV[i]) * pred_max_speed
+
+            def pred_avoid_bound():
+              global predetorP, predetorV, predetorN
+
+              bound = 5
+              amount = 0.5
+              for i in range(predetorN):
+                if predetorP[i][0] + bound < -boundRange:
+                  predetorV[i][0] += amount
+                if predetorP[i][0] - bound > boundRange:
+                  predetorV[i][0] -= amount
+                if predetorP[i][1] + bound < -boundRange:
+                  predetorV[i][1] += amount
+                if predetorP[i][1] - bound > boundRange:
+                  predetorV[i][1] -= amount
+                if predetorP[i][2] + bound < -boundRange:
+                  predetorV[i][2] += amount
+                if predetorP[i][2] - bound > boundRange:
+                  predetorV[i][2] -= amount
+              
+
+            def update_predetors():
+              global predetorP, predetorV, predetorN
+
+              vel1 = pred_chase_boid_rule()
+
+              predetorV += vel1
+              pred_avoid_bound()
+              pred_limit_velocity()
+              predetorP += predetorV
+              
+            def run():
+              scene.pause = not scene.pause
+
+            def animate():
+              if not scene.pause:
+                update_boids()
+                draw_boids()
+                update_predetors()
+                draw_predetors()
+              
+              renderer.render(scene, camera)
+
+            ## Example code for slider
+            def slider01_function(event):
+              global cohesion
+              value = int(Element("Slider01").value)
+
+              cohesion = value / 100
+
+              document.getElementById("SliderValue01").innerHTML = str(round(value / 100, 2))
+            document.getElementById("Slider01").oninput = slider01_function
+
+            def slider02_function(event):
+              global separation
+              value = int(Element("Slider02").value)
+              separation = value / 100
+
+              document.getElementById("SliderValue02").innerHTML = str(round(value / 100, 2))
+            document.getElementById("Slider02").oninput = slider02_function
+
+            def slider03_function(event):
+              global alignment
+              value = int(Element("Slider03").value)
+              alignment = value / 100
+
+              document.getElementById("SliderValue03").innerHTML = str(round(value / 100, 2))
+            document.getElementById("Slider03").oninput = slider03_function
+
+            def slider04_function(event):
+              global recog_range
+              value = int(Element("Slider04").value)
+              recog_range = value
+              document.getElementById("SliderValue04").innerHTML = str(value)
+            document.getElementById("Slider04").oninput = slider04_function
+
+            def slider05_function(event):
+              global max_speed
+              value = int(Element("Slider05").value)
+              max_speed = value / 10
+              document.getElementById("SliderValue05").innerHTML = str(value / 10)
+            document.getElementById("Slider05").oninput = slider05_function
+
+            def slider06_function(event):
+              global goal_tend
+              value = int(Element("Slider06").value)
+              goal_tend = value / 100
+
+              document.getElementById("SliderValue06").innerHTML = str(round(value / 100, 2))
+            document.getElementById("Slider06").oninput = slider06_function
+
+
+            async def main():
+              boid_num = 30
+              predetor_num = 2
+              create_boids(boid_num)
+              create_predetors(predetor_num)
+              create_goal()
+              create_obstacles(3)
+              draw_boids()
+              draw_predetors()
+              while True:         
+                animate()
+                await asyncio.sleep(0.0001)
+            asyncio.ensure_future(main())
+        </py-script>
+        </body>
+</html>
